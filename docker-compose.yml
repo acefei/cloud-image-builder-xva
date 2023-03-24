@@ -1,0 +1,8 @@
+services:
+  seed-iso-builder:
+    build:
+      context: .
+      target: seed-iso-builder
+    image: seed-iso-builder
+    volumes:
+      - .:/output
