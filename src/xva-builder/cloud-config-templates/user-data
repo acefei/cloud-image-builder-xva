@@ -1,0 +1,7 @@
+#cloud-config
+users:
+  - default
+  - name: xenserver
+    groups: admin
+    lock_passwd: false
+    passwd: $6$nqZiIASVBA.iF$9nubU0ImWVrv4XhtEq9XhSh9UYNFQ7yC9Lf7A.uheSlJ3cgI5d9ltkUwRq.X8lAwoQuLAMem6v.gJNGYwk5XA0

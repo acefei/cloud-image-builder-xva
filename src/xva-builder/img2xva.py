@@ -1,8 +1,5 @@
 #!/usr/bin/python3
-
-"""
-Build an XVA using the new XVA format (version 2)
-"""
+# coding=utf-8
 
 import logging
 import os
@@ -14,6 +11,7 @@ from pathlib import Path
 from string import Template
 from subprocess import check_call, check_output
 from tempfile import TemporaryDirectory
+from time import time,sleep
 
 
 def copy_and_hash(fin, fout, start, to_copy):
@@ -107,36 +105,57 @@ def convert_image(qcow2, image_name):
 
 def check_file_format(img):
     file_format = check_output(["file", img]).decode()
-    if "QCOW2" in file_format:
+    if "QCOW2" in file_format or "QEMU QCOW Image (v2)" in file_format:
         return "QCOW2"
     if "DOS/MBR" in file_format:
         return "RAW"
     return file_format
 
 
-def handle_image(img):
-    file_suffix = Path(img).suffix
+def generate_hash():
+    current_time = str(time()).encode('utf-8')
+    hash_value = sha1(current_time).hexdigest()
+    return hash_value[:5]
+
+
+def insert_seed(image_file, user_data_path):
+    with TemporaryDirectory() as temp_mount:
+        mount_seed_path = f"{temp_mount}/var/lib/cloud/seed/nocloud"
+        logging.debug(f"Insert seed into {mount_seed_path}")
+        check_call(["guestmount", "-a", image_file, "-i", temp_mount])
+        Path(mount_seed_path).mkdir(parents=True, exist_ok=True)
+        with open(f"{mount_seed_path}/meta-data", mode='w') as f:
+            random_str = generate_hash()
+            f.write(f"local-hostname: xs-vm-{random_str}")
+
+        check_call(["cp", user_data_path, f"{mount_seed_path}/user-data"])
+        check_call(["guestunmount", temp_mount])
+        # avoid race condition between guestunmount and qemu-img convert
+        sleep(1)
+
+
+def gen_raw_img(image_path, user_data_path=None):
+    file_suffix = Path(image_path).suffix
     if file_suffix not in [".raw", ".img", ".qcow2", "image"]:
         raise Exception(
             f"Invalid image {file_suffix}, only support qcow2 and raw image now."
         )
 
-    output_image = None
-    image_basename = Path(img).name
-    if img[0:4] == "http":
-        download_image(img)
-
-    file_format = check_file_format(image_basename)
+    file_format = check_file_format(image_path)
     if file_format not in ["QCOW2", "RAW"]:
         raise Exception(
             f"Invalid file format: {file_format}, only support qcow2 and raw image now."
         )
 
-    if file_format == "QCOW2":
-        output_image = Path(image_basename).with_suffix(".image").name
-        convert_image(image_basename, output_image)
+    if user_data_path:
+        logging.info(f"Copy {user_data_path} in {image_path}")
+        insert_seed(image_path, user_data_path)
 
-    return output_image
+    converted_image_path = Path(image_path).with_suffix(".raw")
+    if file_format == "QCOW2":
+        convert_image(image_path, converted_image_path)
+
+    return converted_image_path
 
 
 def _produce_parser():
@@ -156,10 +175,16 @@ def _produce_parser():
         "-c", "--cpus", type=int, default=2, help="CPU Number of VM. Default is 2"
     )
     parser.add_argument(
-        "-m", "--memory", type=int, default=4, help="Memory Size of VM. Default is 4GB"
+        "-m", "--memory", type=int, default=4, help="Memory Size (GB) of VM. Default is 4GB"
     )
     parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose mode for debuging"
+        "-s", "--seed", help="User Data File Path"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose mode for debugging"
+    )
+    parser.add_argument(
+        "-p", "--persist", action="store_true", help="Persist raw image for inspection"
     )
     return parser
 
@@ -168,15 +193,38 @@ def main():
     settings = _produce_parser().parse_args()
     log_level = logging.DEBUG if settings.verbose else logging.INFO
     logging.basicConfig(level=log_level, format=("[%(levelname)s] %(message)s"))
-    script_dir = Path(__file__).resolve().parent
-    image_name = handle_image(settings.image)
-    output_xva_name = Path(image_name).with_suffix(".xva")
 
+
+    script_dir = Path(__file__).resolve().parent
+
+    image_path = None
+    # user-data configuration for cloud image
+    seed_path = None
+
+    # check if image is a path or url
+    image = settings.image
+    if image[0:4] == "http":
+        download_image(image)
+        image_basename = Path(image).name
+        image_path = Path(image_basename).absolute().as_posix()
+    else:
+        image_path = Path(image).absolute().as_posix()
+    
+    if settings.seed:
+       seed_path = Path(settings.seed).absolute().as_posix()
+
+    # convert to raw image
+    logging.info(f"Convert image from {image_path}")
+    raw_path = gen_raw_img(image_path, seed_path)
+    xva_path = Path(raw_path).with_suffix(".xva")
+
+    # convert raw img to xva format
     with TemporaryDirectory() as tempdir:
         root_vdi_ref = "Ref:VDI-1-root"
+        image_name = raw_path.name
         logging.info(f"Chunking {image_name}...")
         (root_size_bytes, root_chunks) = chunk_img(
-            img=image_name, output_dir=f"{tempdir}/{root_vdi_ref}"
+            img=raw_path, output_dir=f"{tempdir}/{root_vdi_ref}"
         )
 
         config = {
@@ -197,12 +245,14 @@ def main():
             ova = Template(fin.read())
             fout.write(ova.substitute(config))
 
-        xva_path = f"{script_dir}/{output_xva_name}"
         logging.info(f"Creating {xva_path}...")
         check_call(
             ["tar", "zchfP", xva_path, "--transform", f"s~{tempdir}/~~", ova_xml_path]
             + root_chunks
         )
+
+    if not settings.persist:
+        check_call(["rm", raw_path])
 
 
 if __name__ == "__main__":

@@ -2,29 +2,80 @@
 The tool automates the process of creating cloud images and outputs them in the XVA format. The resulting images can be used with popular cloud platforms such as Xen, XenServer, and Citrix Hypervisor.
 
 # Getting Started
-To use the cloud image builder, follow these steps:
+Clone the repository to your local machine and run the following command:
+```
+$ source run_docker
+```
+then, you can run a docker wrapper `docker_run <stage name> <options>` for multiple stage in Dockerfile. (Hint: press <tab> for stage name auto-completion)
 
-1. Clone the repository to your local machine.
-2. Install the necessary dependencies listed in the requirements.txt file.
-3. Customize the image by modifying the config.yml file.
-4. Run the build.py script to create the image.
+## XVA Builder
+```
+$ docker_run xva-builder -h
+...
+usage: img2xva.py [-h] [-c CPUS] [-m MEMORY] [-s SEED] [-v] [-p] image
 
-# Features
-The cloud image builder includes the following features:
+Build XVA image from qcow2 or raw image
 
-[ ] Build XVA image from qcow2 or raw image
+positional arguments:
+  image                 Path of cloud image, only support qcow2 and raw image, you can also use the existed cloud image whose link as follows:
+                            Ubuntu: https://cloud-images.ubuntu.com/
+                            Debian: https://cloud.debian.org/cdimage/cloud/
+                            AmaLinux: https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/
 
-[ ] Provide user-data Templates
 
-[ ] Automated build process based on Docker
+options:
+  -h, --help            show this help message and exit
+  -c CPUS, --cpus CPUS  CPU Number of VM. Default is 2
+  -m MEMORY, --memory MEMORY
+                        Memory Size (GB) of VM. Default is 4GB
+  -s SEED, --seed SEED  User Data File Path
+  -v, --verbose         Enable verbose mode for debugging
+  -p, --persist         Persist raw image for inspection
 
-[ ] Platform support (Xen, XenServer, and Citrix Hypervisor)
+
+$ docker_run xva-builder -c 2 -m 4096 -s src/xva-builder/cloud-config-templates/user-data https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -p
+```
+Once build successfully, we can put the generated XVA on xenserver host to install the VM.
+```
+xe vm-import filename=jammy-server-cloudimg-amd64.xva sr-uuid=<storage uuid>
+```
+Then you can boot up this VM on xencenter and login it with the credential mentioned in user-data file.
+
+## Inspect image
+```
+$ docker_run guestfish --ro -a jammy-server-cloudimg-amd64.raw
+...
+Welcome to guestfish, the guest filesystem shell for
+editing virtual machine filesystems and disk images.
+
+Type: ‘help’ for help on commands
+      ‘man’ to read the manual
+      ‘quit’ to quit the shell
+
+><fs> run
+><fs> list-filesystems
+/dev/sda1: ext4
+/dev/sda14: unknown
+/dev/sda15: vfat
+><fs> mount /dev/sda1 /
+><fs> ls /
+bin
+boot
+dev
+...
+><fs>
+```
+
+## Validate cloud-init config file
+```
+$ docker_run cloud-init-validator src/xva-builder/cloud-config-templates/user-data
+```
 
 # Guest OS Support
 Consistent with the list of Linux Guest in https://docs.citrix.com/en-us/citrix-hypervisor/system-requirements/guest-os-support.html,
 And you can obtain cloud image with qcow2 format from the following Linux Guest Vendor.
-- Ubuntu: https://cloud-images.ubuntu.com/
-- Debian: https://cloud.debian.org/cdimage/cloud/
+- Ubuntu: https://cloud-images.ubuntu.com
+- Debian: https://cloud.debian.org/cdimage/cloud
 - AmaLinux: https://repo.almalinux.org/almalinux
 
 

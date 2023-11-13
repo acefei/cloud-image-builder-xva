@@ -16,7 +16,7 @@ trap teardown EXIT
 
 # Main
 cd $setup
-echo -e "instance-id: $RANDOM$RANDOM\nlocal-hostname: cloudimg" > meta-data
+echo -e "local-hostname: cloudimg-$RANDOM" > meta-data
 cloud-init devel schema --config-file user-data
 cp $template_path/$user_data .
 mkdir -p /output

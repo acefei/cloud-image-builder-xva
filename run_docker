@@ -1,0 +1,28 @@
+#!/bin/bash
+__auto_completion() {
+    local wordlist="$(grep -Po "FROM base AS \K.*" Dockerfile)"
+    local current_word="${COMP_WORDS[COMP_CWORD]}"
+
+    case "${COMP_CWORD}" in
+        1)
+            COMPREPLY=($(compgen -W "$wordlist" -- "${current_word}"))
+            ;;
+        2)
+            compopt -o nospace
+            COMPREPLY=($(compgen -A file -- "${current_word}"))
+            ;;
+        *)
+            COMPREPLY=()
+            ;;
+    esac
+}
+
+complete -F __auto_completion docker_run
+
+docker_run() {
+    target=$1
+    shift 1
+
+    docker build -t $target --target $target .
+    docker run -it --privileged --rm -v $PWD:/app $target "$@"
+}

@@ -1,5 +1,8 @@
 # ignore outputs
 seed.iso
+*.img
+*.xva
+*.raw
 
 
 # Byte-compiled / optimized / DLL files
