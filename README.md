@@ -1,5 +1,5 @@
-# Cloud Image Builder XVA
-This repository contains a cloud image builder that can create XVA images. The tool automates the process of creating cloud images and outputs them in the XVA format. The resulting images can be used with popular cloud platforms such as Xen, XenServer, and Citrix Hypervisor.
+# Cloud Image Builder for XVA
+The tool automates the process of creating cloud images and outputs them in the XVA format. The resulting images can be used with popular cloud platforms such as Xen, XenServer, and Citrix Hypervisor.
 
 # Getting Started
 To use the cloud image builder, follow these steps:
