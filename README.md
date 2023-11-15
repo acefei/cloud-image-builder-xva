@@ -6,7 +6,7 @@ Clone the repository to your local machine and run the following command:
 ```
 $ source run_docker
 ```
-then, you can run a docker wrapper `docker_run <stage name> <options>` for multiple stage in Dockerfile. (Hint: press <tab> for stage name auto-completion)
+Then you can run a docker wrapper `docker_run <stage name> <options>` for multiple stage in Dockerfile. (Hint: press <tab> for stage name auto-completion)
 
 ## XVA Builder
 ```
@@ -33,7 +33,7 @@ options:
   -p, --persist         Persist raw image for inspection
 
 
-$ docker_run xva-builder -c 2 -m 4096 -s src/xva-builder/cloud-config-templates/user-data https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -p
+$ docker_run xva-builder -c 2 -m 4 -p -s src/xva-builder/cloud-config-templates/user-data https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
 ```
 Once build successfully, we can put the generated XVA on xenserver host to install the VM.
 ```
@@ -42,6 +42,7 @@ xe vm-import filename=jammy-server-cloudimg-amd64.xva sr-uuid=<storage uuid>
 Then you can boot up this VM on xencenter and login it with the credential mentioned in user-data file.
 
 ## Inspect image
+Sometimes, we need to check if the user-data was inserted in image properly, we can add `-p` option when run `xva-builder`, after that there is a `.raw` suffix image generated, then inspect the image as follows:
 ```
 $ docker_run guestfish --ro -a jammy-server-cloudimg-amd64.raw
 ...
@@ -67,6 +68,7 @@ dev
 ```
 
 ## Validate cloud-init config file
+
 ```
 $ docker_run cloud-init-validator src/xva-builder/cloud-config-templates/user-data
 ```
